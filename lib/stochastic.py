@@ -26,10 +26,10 @@ class ConnectedBrownianMotion(object):
     def __init__(self, state_num=10, tick_length=1024):
         self.state_num = state_num
         self.tick_length = tick_length
-        self.transprob_array = MarkovChain.__call__(state_num)
-        self.hurst_array = HurstExponent.__call__(state_num)
+        self.transprob_array = MarkovChain.__call__(self.state_num)
         
     def generate_ticks(self):
+        self.hurst_array = HurstExponent.__call__(self.state_num)
         self.fbm_array = np.array([0])
         rand_num = np.random.rand(self.state_num)
         state_switch = np.random.choice(list(range(10)), 10)
@@ -48,7 +48,7 @@ class ConnectedBrownianMotion(object):
         self.fbm_array = np.delete(self.fbm_array, 0)
         return self.fbm_array
     
-    def to_K(self, hours=5, mins=2):
+    def make_daily(self, hours=5, mins=2):
         groups = hours * (60 / mins)
         K_array = np.asarray(np.array_split(self.fbm_array, groups))
         self.hurst_array = np.asarray(np.array_split(self.hurst_list, groups))
@@ -66,9 +66,15 @@ class ConnectedBrownianMotion(object):
             L = K_array[k].min()
             O = K_array[k][0]
             C = K_array[k][-1]
-            Hurst = self.hurst_array[k][0]
-            out_list.append({'O':O, 'H':H, 'L':L, 'C':C, 'Hurst': Hurst})
+            hurst = self.hurst_array[k][0]
+            out_list.append({'O':O, 'H':H, 'L':L, 'C':C, 'Hurst': hurst})
         return out_list
+    
+    def make_days(self, day_num):
+        for d in range(day_num):
+            self.generate_ticks()
+            tmp_df = self.make_daily()
+            yield tmp_df
     
     def map_label(self, df):
         map_array = []
