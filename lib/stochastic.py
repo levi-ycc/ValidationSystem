@@ -41,7 +41,7 @@ class ConnectedBrownianMotion(object):
         self.hurst_list = []
         for state in range(self.state_num):
             hurst = self.hurst_array[state_switch[state]]
-            tseries = fbm.FBM(n=each_len[state]+1, hurst=hurst, 
+            tseries = fbm.FBM(n=each_len[state], hurst=hurst, 
                                    length=1, method='daviesharte').fbm()
             tseries = tseries + self.last_val
             self.fbm_array = np.append(self.fbm_array, tseries[1:])
