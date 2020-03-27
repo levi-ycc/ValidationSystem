@@ -27,10 +27,11 @@ class ConnectedBrownianMotion(object):
         self.state_num = state_num
         self.tick_length = tick_length
         self.transprob_array = MarkovChain.__call__(self.state_num)
+        self.last_val = 0
         
     def generate_ticks(self):
         self.hurst_array = HurstExponent.__call__(self.state_num)
-        self.fbm_array = np.array([0])
+        self.fbm_array = np.array([])
         rand_num = np.random.rand(self.state_num)
         state_switch = np.random.choice(list(range(10)), 10)
         
@@ -42,10 +43,10 @@ class ConnectedBrownianMotion(object):
             hurst = self.hurst_array[state_switch[state]]
             tseries = fbm.FBM(n=each_len[state], hurst=hurst, 
                                    length=1, method='daviesharte').fbm()
-            tseries = tseries + self.fbm_array[-1]
+            tseries = tseries + self.last_val
             self.fbm_array = np.append(self.fbm_array, tseries[1:])
             self.hurst_list = self.hurst_list + [hurst]*each_len[state]
-        self.fbm_array = np.delete(self.fbm_array, 0)
+            self.last_val = self.fbm_array[-1]
         return self.fbm_array
     
     def make_daily(self, hours=5, mins=2):
