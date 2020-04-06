@@ -2,6 +2,7 @@ import fbm
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+from lib.abstract import RandomProcess
 
 class MarkovChain(object):
     
@@ -21,7 +22,7 @@ class HurstExponent(object):
         bm_per_episode = bm_per_episode / 100
         return bm_per_episode
 
-class ConnectedBrownianMotion(object):
+class ConnectedBrownianMotion(RandomProcess):
     
     def __init__(self, state_num=10, tick_length=1024):
         self.state_num = state_num
@@ -36,18 +37,23 @@ class ConnectedBrownianMotion(object):
         state_switch = np.random.choice(list(range(10)), 10)
         
         total = rand_num.sum()
-        each_len = [int(n/total * self.tick_length) for n in rand_num]
+        self.each_len = [int(n/total * self.tick_length) for n in rand_num]
         
         self.hurst_list = []
         for state in range(self.state_num):
             hurst = self.hurst_array[state_switch[state]]
-            tseries = fbm.FBM(n=each_len[state], hurst=hurst, 
-                                   length=1, method='daviesharte').fbm()
+            tseries = self.generate_random_process(state, hurst)
+#             tseries = fbm.FBM(n=each_len[state], hurst=hurst, 
+#                                    length=1, method='daviesharte').fbm()
             tseries = tseries + self.last_val
             self.fbm_array = np.append(self.fbm_array, tseries[1:])
-            self.hurst_list = self.hurst_list + [hurst]*each_len[state]
+            self.hurst_list = self.hurst_list + [hurst]*self.each_len[state]
             self.last_val = self.fbm_array[-1]
         return self.fbm_array
+    
+    def generate_random_process(self, state, hurst):
+        return fbm.FBM(n=self.each_len[state], hurst=hurst, 
+                                   length=1, method='daviesharte').fbm()
     
     def make_daily(self, hours=5, mins=2):
         groups = hours * (60 / mins)
@@ -89,4 +95,49 @@ class ConnectedBrownianMotion(object):
         return map_array
             
         
-
+class LocalVolModel(ConnectedBrownianMotion):
+    def __init__(self, state_num=10, tick_length=1024):
+        super().__init__(state_num, tick_length)
+        
+    def set_values(self, S0, r, q, sigma):     
+        self.periods = self.tick_length
+        self.S0 = S0
+        self.r = r
+        self.q = q
+        self.sigma = sigma
+        
+    def generate_random_process(self, state, hurst):
+        return self.generate_lvm()
+    
+    def generate_lvm(self):
+        w = [np.random.normal(0, 1/self.periods) for a in range(self.periods)]
+        t=1/self.periods
+        randw = [(self.r-self.q) * t + self.sigma*w[i] for i in range(len(w))]
+        ds = self.S0*randw
+        df = pd.DataFrame(ds, columns=['price'])
+        df = pd.concat([pd.DataFrame([self.S0], columns=['price']), df], ignore_index=True)
+        df['price'].cumsum().values
+        return df['price'].cumsum().values
+    
+    def generate_ticks(self):        
+        tseries = self.generate_random_process(None, None)
+        self.fbm_array = tseries
+        return self.fbm_array
+    
+    def make_daily(self, hours=5, mins=2):
+        groups = hours * (60 / mins)
+        K_array = np.asarray(np.array_split(self.fbm_array, groups))
+        out_list = self.calculate_K(K_array)
+        df = pd.DataFrame(out_list)
+        df['Date'] = range(df.shape[0])
+        return df.copy()
+    
+    def calculate_K(self, K_array):
+        out_list = []
+        for k in range(K_array.shape[0]):
+            H = K_array[k].max()
+            L = K_array[k].min()
+            O = K_array[k][0]
+            C = K_array[k][-1]
+            out_list.append({'O':O, 'H':H, 'L':L, 'C':C})
+        return out_list
